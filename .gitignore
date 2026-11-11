@@ -1,0 +1,19 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Local run output
+build/appium-logs/
+build/artifacts/
+*.log
+
+# Secrets (encrypted blobs live in secrets/)
+secrets/*.conf
+!secrets/*.conf.gpg
+!secrets/README.md
+
+# IDE
+.idea/
+*.iml
+.DS_Store

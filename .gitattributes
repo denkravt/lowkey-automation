@@ -1,0 +1,2 @@
+# git-crypt: everything under secrets/ is encrypted at rest
+secrets/** filter=git-crypt diff=git-crypt

@@ -1,0 +1,100 @@
+name: android-e2e
+
+# Real device on a self-hosted runner: the machine must have adb, a connected phone
+# (authorised for debugging) and the Appium server installed under ~/.npm-global.
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Suite to run
+        type: choice
+        options: [all, smoke, t0]
+        default: all
+  schedule:
+    - cron: "0 6 * * *"
+
+concurrency:
+  group: android-e2e
+  cancel-in-progress: false
+
+jobs:
+  android:
+    runs-on: [self-hosted, macOS, android-device]
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Unlock secrets
+        run: |
+          if [ -f secrets/appium.env.enc ]; then
+            ./ci/unlock-secrets.sh
+          else
+            echo "No encrypted secrets present - continuing with environment defaults"
+          fi
+        env:
+          SECRETS_KEY: ${{ secrets.SECRETS_KEY }}
+
+      - name: Ensure Appium and the uiautomator2 driver
+        run: |
+          export PATH="$HOME/.npm-global/bin:$PATH"
+          if ! command -v appium >/dev/null; then npm i -g appium@3; fi
+          appium driver list --installed | grep -q uiautomator2 || appium driver install uiautomator2
+          appium driver list --installed
+
+      - name: Resolve device
+        run: |
+          adb devices -l
+          adb wait-for-device
+          echo "DEVICE_UDID=$(adb devices -l | awk 'NR>1 && $2=="device" && $0 !~ /emulator/ {print $1; exit}')" >> "$GITHUB_ENV"
+
+      - name: Smoke suite
+        id: smoke
+        env:
+          DEVICE_UDID: ${{ env.DEVICE_UDID }}
+          APP_SOURCE: ${{ vars.APP_SOURCE }}
+          ENABLE_SCREEN_RECORDING: "true"
+        run: |
+          export PATH="$HOME/.npm-global/bin:$PATH"
+          ./gradlew lowkey-android-smoke --console=plain
+
+      - name: T0 suite
+        if: steps.smoke.outcome == 'success' && (github.event.inputs.suite == 'all' || github.event.inputs.suite == 't0')
+        env:
+          DEVICE_UDID: ${{ env.DEVICE_UDID }}
+          APP_SOURCE: ${{ vars.APP_SOURCE }}
+        run: |
+          export PATH="$HOME/.npm-global/bin:$PATH"
+          ./gradlew lowkey-android-t0 --console=plain
+
+      - name: Archive results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-e2e-${{ github.run_id }}
+          retention-days: 14
+          if-no-files-found: ignore
+          path: |
+            app/build/test-results/**
+            app/build/reports/tests/**
+            build/artifacts/**
+            build/appium-logs/**
+
+      - name: Post to Slack
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          BUILD_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: ./gradlew postSlackResults --console=plain
