@@ -89,6 +89,29 @@ class AdbUtils(val udid: String? = null) {
 
     fun push(local: File, remote: String): Boolean = exec("push", local.absolutePath, remote).ok
 
+    /** Copies a file out of the app sandbox through `run-as` (debug builds only). */
+    fun pullAppFile(packageName: String, relativePath: String, local: File): Boolean {
+        local.parentFile?.mkdirs()
+        val invocation = buildList {
+            add("adb")
+            udid?.takeIf { it.isNotBlank() }?.let { addAll(listOf("-s", it)) }
+            addAll(listOf("exec-out", "run-as", packageName, "cat", relativePath))
+        }
+        val process = ProcessBuilder(invocation).redirectErrorStream(false).start()
+        process.inputStream.use { input -> local.outputStream().use { input.copyTo(it) } }
+        val finished = process.waitFor(60, TimeUnit.SECONDS)
+        val ok = finished && local.length() > 0
+        if (!ok) Log.warn("could not pull $relativePath from $packageName")
+        return ok
+    }
+
+    /** Newest file in an app-private directory, or null when the app has not written anything yet. */
+    fun newestAppFile(packageName: String, directory: String): String? =
+        shell("run-as $packageName ls -t $directory 2>/dev/null").output
+            .lineSequence()
+            .mapNotNull { it.trim().takeIf { name -> name.isNotBlank() && !name.startsWith("total") } }
+            .firstOrNull()
+
     fun pull(remote: String, local: File): Boolean {
         local.parentFile?.mkdirs()
         return exec("pull", remote, local.absolutePath).ok
