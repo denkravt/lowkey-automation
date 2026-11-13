@@ -107,10 +107,28 @@ already listening on `127.0.0.1:4723`.
 | `ExportVlogTest` | export stitches and reports "saved to gallery" |
 | `CameraControlsTest` | mode label, lens flip, pause/resume freeze, close |
 | `QuickRecordEntryTest` | home Low-key / Normal entry points open the matching mode |
+| `ClipOutputTest` | the recorded file itself: 16:9, no rotation metadata, duration matches |
+| `ExportOutputTest` | the exported gallery file exists in MediaStore and is 16:9 |
+| `CameraChipsTest` | torch, blackout and lens chips toggle without losing the preview |
+| `DialogCancelTest` | cancelling rename / clip delete / project delete changes nothing |
+| `ReorderClipsTest` | Move down reorders the clip list (playback and export order) |
+| `EditorPreviewTest` | Preview starts the clip and Pause stops it again |
+| `PlayerAdvanceTest` | the vlog player advances from clip 1 to clip 2 |
 
-Not automated yet: the SAF music picker (system file dialog), widget placement on the launcher and
-drag-to-reorder inside the clip list - all three need either a second app context or gesture replay on
-a scaled track that is not deterministic on every device.
+Output assertions pull the real artifact off the device (`run-as` for the private clip dir, MediaStore
++ `adb pull` for exports) and probe it with `ffprobe`, so a passing test means a playable file, not
+just a promising label.
+
+Not automated, and why:
+
+| Area | Reason |
+| --- | --- |
+| SAF music picker | system file dialog in another app context |
+| Widgets (3x2 and 1x1) | needs a launcher host and a resize surface |
+| Quick Settings tile | system UI, same class of problem |
+| Drag-to-reorder gesture | long-press drag on a scaled track is not deterministic device to device; the Move up/down menu path is covered instead |
+| Share clip | system share sheet |
+| Landscape capture | `CameraActivity` is `fullSensor`, so the OS follows the accelerometer: `setScreenOrientation` is ignored while the node is "locked programmatically". Only a physical turn exercises it. |
 
 ## What a run produces
 

@@ -13,6 +13,13 @@ class VlogPlayerScreen(driver: AppiumDriver) : BaseScreen(driver, ScreenOs.ANDRO
     override fun isDisplayed(waitTimeMillis: Long, screenshotOnFailure: Boolean): Boolean =
         locators.exists(PlayerViewResource.clipCounter, waitTimeMillis)
 
+    /** Waits until the player reaches clip [number] (the vlog plays every clip in order). */
+    fun awaitClipNumber(number: Int, timeoutMs: Long = 60_000L): Boolean = runCatching {
+        com.justan.shared.waitstrategy.PollingWaitStrategy().poll("clip $number of", timeoutMs) {
+            if (counterText().contains("clip $number of")) Unit else null
+        }
+    }.isSuccess
+
     fun counterText(): String = locators.findOrNull(PlayerViewResource.clipCounter)?.text ?: ""
 
     fun pause(): VlogPlayerScreen {

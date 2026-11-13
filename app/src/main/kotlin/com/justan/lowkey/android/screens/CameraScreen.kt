@@ -14,12 +14,23 @@ class CameraScreen(driver: AppiumDriver) : BaseScreen(driver, ScreenOs.ANDROID) 
 
     private val polling = PollingWaitStrategy(pollIntervalMs = AppiumConfig.load().pollIntervalMs)
 
-    override fun isDisplayed(waitTimeMillis: Long, screenshotOnFailure: Boolean): Boolean =
-        locators.exists(CameraViewResource.shutterIdle, waitTimeMillis)
+    override fun isDisplayed(waitTimeMillis: Long, screenshotOnFailure: Boolean): Boolean {
+        if (locators.exists(CameraViewResource.shutterIdle, 3_000L)) return true
+        // A fresh install makes Android ask for the camera before the preview ever appears.
+        val allow = com.justan.shared.waitstrategy.LocatorStrategy.Text("While using the app")
+        if (locators.exists(allow, 1_500L)) locators.click(allow)
+        return locators.exists(CameraViewResource.shutterIdle, waitTimeMillis)
+    }
 
     fun startRecording(): CameraScreen {
         log("tapping the shutter")
-        locators.click(CameraViewResource.shutterIdle)
+        // The control is visible before the capture pipeline is bound; a tap in that window is lost.
+        repeat(3) {
+            locators.click(CameraViewResource.shutterIdle)
+            if (locators.exists(CameraViewResource.shutterRecording, 3_000L)) return this
+            log("shutter tap did not start a take, retrying")
+        }
+        check(isRecording()) { "the take did not start after three shutter taps" }
         return this
     }
 
@@ -47,6 +58,23 @@ class CameraScreen(driver: AppiumDriver) : BaseScreen(driver, ScreenOs.ANDROID) 
         return this
     }
 
+    fun toggleTorch(): CameraScreen {
+        locators.click(CameraViewResource.torchChip)
+        return this
+    }
+
+    fun toggleBlackout(): CameraScreen {
+        locators.click(CameraViewResource.blackoutChip)
+        return this
+    }
+
+    fun lensChipCount(): Int = locators.all(CameraViewResource.lensChips).size
+
+    fun tapLensChip(index: Int): CameraScreen {
+        locators.all(CameraViewResource.lensChips)[index].click()
+        return this
+    }
+
     fun flipCamera(): CameraScreen {
         locators.click(CameraViewResource.flipCamera)
         return this
@@ -58,6 +86,14 @@ class CameraScreen(driver: AppiumDriver) : BaseScreen(driver, ScreenOs.ANDROID) 
             ?: locators.findOrNull(CameraViewResource.standardPortraitMode, 1_500L)?.text
             ?: locators.findOrNull(CameraViewResource.standardLandscapeMode, 1_500L)?.text
             ?: ""
+
+    /** Waits until the mode pill reads e.g. "STANDARD · LANDSCAPE". */
+    fun awaitModeContains(fragment: String, timeoutMs: Long = 20_000L): Boolean = runCatching {
+        polling.poll("mode pill contains '$fragment'", timeoutMs) {
+            val label = modeLabel()
+            if (label.contains(fragment)) Unit else null
+        }
+    }.isSuccess || locators.exists(CameraViewResource.landscapeModeHint, 2_000L)
 
     fun isRecording(): Boolean = locators.exists(CameraViewResource.shutterRecording, 1_000L)
 

@@ -25,7 +25,11 @@ class ProjectScreen(driver: AppiumDriver) : BaseScreen(driver, ScreenOs.ANDROID)
     fun startRecording(): CameraScreen {
         log("opening the camera from the project")
         locators.click(ProjectViewResource.recordTile)
-        return CameraScreen(driver)
+        val camera = CameraScreen(driver)
+        if (camera.isDisplayed(12_000L)) return camera
+        log("camera did not come up, tapping the record tile again")
+        locators.click(ProjectViewResource.recordTile)
+        return camera
     }
 
     fun backToHome(): HomeScreen {
@@ -87,10 +91,26 @@ class ProjectScreen(driver: AppiumDriver) : BaseScreen(driver, ScreenOs.ANDROID)
         return this
     }
 
-    fun deleteClip(index: Int = 0): ProjectScreen {
+    fun deleteClip(index: Int = 0, confirm: Boolean = true): ProjectScreen {
         openClipMenu(index)
         locators.click(ProjectViewResource.clipMenuDelete)
-        locators.click(ProjectViewResource.deleteClipConfirm)
+        if (confirm) locators.click(ProjectViewResource.deleteClipConfirm) else cancelDialog()
+        return this
+    }
+
+    /**
+     * Text of a clip row as a single string (duration + timestamp). The "clip-row" marker node carries
+     * no text of its own, so the labels are collected from its descendants.
+     */
+    fun clipRowText(index: Int): String {
+        val row = locators.all(ProjectViewResource.clipRows)[index]
+        return row.findElements(org.openqa.selenium.By.xpath(".//*[@text]"))
+            .mapNotNull { it.text?.takeIf(String::isNotBlank) }
+            .joinToString(" | ")
+    }
+
+    fun cancelDialog(): ProjectScreen {
+        locators.click(ProjectViewResource.dialogCancel)
         return this
     }
 
@@ -131,6 +151,21 @@ class ProjectScreen(driver: AppiumDriver) : BaseScreen(driver, ScreenOs.ANDROID)
         return this
     }
 
+    /** Opens the delete-project dialog and backs out of it. */
+    fun deleteProjectCancelled(): ProjectScreen {
+        openHeaderMenu()
+        locators.click(ProjectViewResource.deleteProject)
+        cancelDialog()
+        return this
+    }
+
+    /** Waits until the first clip row reads [text] - used to assert a reorder took effect. */
+    fun awaitFirstClipText(text: String, timeoutMs: Long = 15_000L): Boolean = runCatching {
+        polling.poll("first clip row == '$text'", timeoutMs) {
+            if (runCatching { clipRowText(0) }.getOrDefault("") == text) Unit else null
+        }
+    }.isSuccess
+
     fun deleteProject(): HomeScreen {
         openHeaderMenu()
         locators.click(ProjectViewResource.deleteProject)
@@ -138,12 +173,12 @@ class ProjectScreen(driver: AppiumDriver) : BaseScreen(driver, ScreenOs.ANDROID)
         return HomeScreen(driver)
     }
 
-    fun rename(newName: String): ProjectScreen {
+    fun rename(newName: String, confirm: Boolean = true): ProjectScreen {
         log("renaming the project to '$newName'")
         locators.click(ProjectViewResource.projectTitle)
         val field = locators.element(LocatorStrategy.ClassName("android.widget.EditText"))
         actions.type(field, newName)
-        locators.click(ProjectViewResource.saveRename)
+        if (confirm) locators.click(ProjectViewResource.saveRename) else cancelDialog()
         return this
     }
 

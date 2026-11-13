@@ -34,6 +34,7 @@ object ProjectViewResource {
     val clipMenuMoveDown = LocatorStrategy.Text("Move down")
     val clipMenuDelete = LocatorStrategy.Text("Delete")
 
+    val dialogCancel = LocatorStrategy.Text("Cancel")
     val renameDialogTitle = LocatorStrategy.Text("Rename project")
     val saveRename = LocatorStrategy.Text("Save")
 

@@ -16,6 +16,25 @@ class ClipEditorScreen(driver: AppiumDriver) : BaseScreen(driver, ScreenOs.ANDRO
         locators.exists(EditorViewResource.title, waitTimeMillis) &&
             locators.exists(EditorViewResource.save, waitTimeMillis)
 
+    /** "Preview" or "Pause" - the button flips while the clip plays. */
+    fun previewToggleText(): String =
+        locators.findOrNull(EditorViewResource.pause, 800L)?.text
+            ?: locators.findOrNull(EditorViewResource.preview, 2_000L)?.text
+            ?: ""
+
+    /** Waits until the toggle reads [fragment] ("Preview" or "Pause"). */
+    fun awaitPreviewText(fragment: String, timeoutMs: Long = 20_000L): Boolean = runCatching {
+        com.justan.shared.waitstrategy.PollingWaitStrategy().poll("preview button '$fragment'", timeoutMs) {
+            if (previewToggleText().contains(fragment)) Unit else null
+        }
+    }.isSuccess
+
+    fun togglePreview(): ClipEditorScreen {
+        val pause = locators.findOrNull(EditorViewResource.pause, 800L)
+        if (pause != null) pause.click() else locators.click(EditorViewResource.preview)
+        return this
+    }
+
     /** The "0:00 → 0:04" label under the slider. */
     fun rangeLabel(): String = locators.findOrNull(EditorViewResource.rangeLabel, 2_000L)?.text ?: ""
 

@@ -18,4 +18,15 @@ class AndroidDeviceSettingsManager(private val adb: AdbUtils) {
         }
         Log.info("Device prepared for automation (animations off, stay awake)")
     }
+
+    /** 0 = portrait, 1 = landscape (device rotated counter-clockwise), 2 = reverse portrait, 3 = reverse landscape. */
+    fun setRotation(rotation: Int) {
+        adb.shell("settings put system accelerometer_rotation 0")
+        adb.shell("settings put system user_rotation $rotation")
+        Log.info("Device rotation forced to $rotation")
+    }
+
+    fun restoreAutoRotate() {
+        adb.shell("settings put system accelerometer_rotation 1")
+    }
 }
